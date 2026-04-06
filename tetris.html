@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>テトリス</title>
+<title>テトリス対戦</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -11,60 +12,100 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
     font-family: 'Segoe UI', sans-serif;
     color: #eee;
   }
-  .game-container {
+  .game-wrapper {
     display: flex;
-    gap: 24px;
+    gap: 40px;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .player-area {
+    display: flex;
+    gap: 16px;
     align-items: flex-start;
   }
-  canvas {
+  .player-area .board-wrapper { position: relative; }
+  .player-label {
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #8888cc;
+  }
+  canvas.board {
     border: 2px solid #4a4a8a;
     border-radius: 4px;
     background: #0f0f23;
   }
+  .opponent-area canvas.board {
+    border-color: #8a4a4a;
+  }
   .side-panel {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    min-width: 140px;
+    gap: 12px;
+    min-width: 110px;
   }
   .panel-box {
     background: #16213e;
     border: 2px solid #4a4a8a;
     border-radius: 8px;
-    padding: 16px;
+    padding: 12px;
     text-align: center;
   }
   .panel-box h3 {
-    font-size: 14px;
+    font-size: 12px;
     color: #8888cc;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 1px;
   }
   .panel-box .value {
-    font-size: 28px;
+    font-size: 22px;
     font-weight: bold;
     color: #fff;
   }
-  #next-canvas {
+  .next-canvas {
     border: none;
     background: transparent;
     display: block;
     margin: 0 auto;
   }
   .controls {
-    font-size: 12px;
+    font-size: 11px;
     color: #6a6a9a;
     line-height: 1.8;
   }
+  .vs-label {
+    font-size: 36px;
+    font-weight: bold;
+    color: #f04040;
+    align-self: center;
+    text-shadow: 0 0 20px rgba(240,64,64,0.5);
+  }
+  /* Center column for VS + garbage indicators */
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-width: 60px;
+    align-self: center;
+  }
+  .garbage-indicator {
+    font-size: 14px;
+    color: #ff6666;
+    font-weight: bold;
+  }
+  /* Overlays */
   .overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.8);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -76,382 +117,684 @@
     padding: 40px;
     border-radius: 12px;
     border: 2px solid #4a4a8a;
+    max-width: 400px;
+    width: 90%;
   }
-  .overlay-content h2 { font-size: 32px; margin-bottom: 12px; }
-  .overlay-content p { margin-bottom: 20px; color: #aaa; }
+  .overlay-content h2 { font-size: 32px; margin-bottom: 16px; }
+  .overlay-content p { margin-bottom: 16px; color: #aaa; }
   .overlay-content button {
-    padding: 12px 32px;
+    padding: 12px 28px;
     font-size: 16px;
     background: #4a4a8a;
     color: #fff;
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    margin: 6px;
   }
   .overlay-content button:hover { background: #6a6aaa; }
+  .overlay-content button.primary {
+    background: #2a8a4a;
+  }
+  .overlay-content button.primary:hover { background: #3aaa5a; }
+  .overlay-content input {
+    padding: 10px 16px;
+    font-size: 20px;
+    text-align: center;
+    background: #0f0f23;
+    color: #fff;
+    border: 2px solid #4a4a8a;
+    border-radius: 6px;
+    width: 200px;
+    letter-spacing: 4px;
+    font-family: monospace;
+  }
+  .overlay-content input::placeholder {
+    letter-spacing: 1px;
+    font-size: 14px;
+  }
+  .room-code {
+    font-size: 36px;
+    font-weight: bold;
+    color: #00f0f0;
+    letter-spacing: 6px;
+    font-family: monospace;
+    margin: 16px 0;
+    user-select: all;
+  }
+  .status-msg {
+    color: #f0a000;
+    font-size: 14px;
+    margin-top: 12px;
+  }
   .hidden { display: none; }
+  .win-text { color: #00f000; }
+  .lose-text { color: #f00000; }
 </style>
 </head>
 <body>
 
-<div class="game-container">
-  <canvas id="board" width="300" height="600"></canvas>
-  <div class="side-panel">
-    <div class="panel-box">
-      <h3>NEXT</h3>
-      <canvas id="next-canvas" width="100" height="100"></canvas>
-    </div>
-    <div class="panel-box">
-      <h3>SCORE</h3>
-      <div class="value" id="score">0</div>
-    </div>
-    <div class="panel-box">
-      <h3>LEVEL</h3>
-      <div class="value" id="level">1</div>
-    </div>
-    <div class="panel-box">
-      <h3>LINES</h3>
-      <div class="value" id="lines">0</div>
-    </div>
-    <div class="panel-box controls">
-      <h3>CONTROLS</h3>
-      ← → : 移動<br>
-      ↑ : 回転<br>
-      ↓ : 落下加速<br>
-      Space : 即落下<br>
-      P : 一時停止
-    </div>
-  </div>
-</div>
-
-<div class="overlay" id="start-screen">
+<!-- Main Menu -->
+<div class="overlay" id="menu-screen">
   <div class="overlay-content">
-    <h2>TETRIS</h2>
-    <p>矢印キーで操作</p>
-    <button onclick="startGame()">スタート</button>
+    <h2>TETRIS BATTLE</h2>
+    <p>オンライン対戦テトリス</p>
+    <button onclick="startSolo()">ひとりで遊ぶ</button>
+    <br>
+    <button class="primary" onclick="createRoom()">部屋を作る</button>
+    <button class="primary" onclick="showJoinUI()">部屋に参加</button>
   </div>
 </div>
 
-<div class="overlay hidden" id="gameover-screen">
+<!-- Host waiting -->
+<div class="overlay hidden" id="host-screen">
+  <div class="overlay-content">
+    <h2>部屋を作成しました</h2>
+    <p>このコードを相手に伝えてください：</p>
+    <div class="room-code" id="room-code">----</div>
+    <p class="status-msg" id="host-status">相手の接続を待っています...</p>
+    <button onclick="cancelRoom()">キャンセル</button>
+  </div>
+</div>
+
+<!-- Join room -->
+<div class="overlay hidden" id="join-screen">
+  <div class="overlay-content">
+    <h2>部屋に参加</h2>
+    <p>ルームコードを入力してください：</p>
+    <input type="text" id="join-code" maxlength="6" placeholder="コード">
+    <br><br>
+    <button class="primary" onclick="joinRoom()">参加</button>
+    <button onclick="backToMenu()">戻る</button>
+    <p class="status-msg hidden" id="join-status">接続中...</p>
+  </div>
+</div>
+
+<!-- Game Over (battle) -->
+<div class="overlay hidden" id="result-screen">
+  <div class="overlay-content">
+    <h2 id="result-title">GAME OVER</h2>
+    <p id="result-detail"></p>
+    <button onclick="backToMenu()">メニューに戻る</button>
+  </div>
+</div>
+
+<!-- Game Over (solo) -->
+<div class="overlay hidden" id="solo-gameover-screen">
   <div class="overlay-content">
     <h2>GAME OVER</h2>
-    <p>スコア: <span id="final-score">0</span></p>
-    <button onclick="startGame()">リトライ</button>
+    <p>スコア: <span id="solo-final-score">0</span></p>
+    <button onclick="startSolo()">リトライ</button>
+    <button onclick="backToMenu()">メニュー</button>
   </div>
 </div>
 
-<div class="overlay hidden" id="pause-screen">
-  <div class="overlay-content">
-    <h2>PAUSE</h2>
-    <p>Pキーで再開</p>
+<!-- Game Area -->
+<div class="game-wrapper hidden" id="game-area">
+  <!-- My area -->
+  <div class="player-area" id="my-area">
+    <div class="board-wrapper">
+      <div class="player-label">あなた</div>
+      <canvas class="board" id="my-board" width="300" height="600"></canvas>
+    </div>
+    <div class="side-panel">
+      <div class="panel-box">
+        <h3>NEXT</h3>
+        <canvas class="next-canvas" id="my-next" width="100" height="100"></canvas>
+      </div>
+      <div class="panel-box">
+        <h3>SCORE</h3>
+        <div class="value" id="my-score">0</div>
+      </div>
+      <div class="panel-box">
+        <h3>LEVEL</h3>
+        <div class="value" id="my-level">1</div>
+      </div>
+      <div class="panel-box">
+        <h3>LINES</h3>
+        <div class="value" id="my-lines">0</div>
+      </div>
+      <div class="panel-box controls">
+        <h3>操作</h3>
+        ← → : 移動<br>
+        ↑ : 回転<br>
+        ↓ : 加速<br>
+        Space : 即落下
+      </div>
+    </div>
+  </div>
+
+  <!-- Center VS -->
+  <div class="center-col" id="center-col">
+    <div class="vs-label">VS</div>
+  </div>
+
+  <!-- Opponent area -->
+  <div class="player-area opponent-area" id="opp-area">
+    <div class="board-wrapper">
+      <div class="player-label" id="opp-label">相手</div>
+      <canvas class="board" id="opp-board" width="300" height="600"></canvas>
+    </div>
   </div>
 </div>
 
 <script>
-const COLS = 10;
-const ROWS = 20;
-const BLOCK = 30;
-const canvas = document.getElementById('board');
-const ctx = canvas.getContext('2d');
-const nextCanvas = document.getElementById('next-canvas');
-const nextCtx = nextCanvas.getContext('2d');
+// ===== Constants =====
+const COLS = 10, ROWS = 20, BLOCK = 30;
 
 const COLORS = [
-  null,
-  '#00f0f0', // I - cyan
-  '#0000f0', // J - blue
-  '#f0a000', // L - orange
-  '#f0f000', // O - yellow
-  '#00f000', // S - green
-  '#a000f0', // T - purple
-  '#f00000', // Z - red
+  null, '#00f0f0', '#0000f0', '#f0a000', '#f0f000', '#00f000', '#a000f0', '#f00000',
+  '#888888' // garbage block color
 ];
 
 const SHAPES = [
   null,
-  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
-  [[2,0,0],[2,2,2],[0,0,0]],                   // J
-  [[0,0,3],[3,3,3],[0,0,0]],                   // L
-  [[4,4],[4,4]],                                // O
-  [[0,5,5],[5,5,0],[0,0,0]],                   // S
-  [[0,6,0],[6,6,6],[0,0,0]],                   // T
-  [[7,7,0],[0,7,7],[0,0,0]],                   // Z
+  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  [[2,0,0],[2,2,2],[0,0,0]],
+  [[0,0,3],[3,3,3],[0,0,0]],
+  [[4,4],[4,4]],
+  [[0,5,5],[5,5,0],[0,0,0]],
+  [[0,6,0],[6,6,6],[0,0,0]],
+  [[7,7,0],[0,7,7],[0,0,0]],
 ];
 
-let board, piece, nextPiece, score, lines, level, dropInterval, dropTimer, paused, gameOver, animId;
+// ===== Game State =====
+let mode = null; // 'solo', 'host', 'guest'
+let peer = null, conn = null;
+let myState = null, oppState = null;
+let animId = null, lastTime = 0;
+let pendingGarbage = 0;
 
+// ===== PeerJS =====
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function createRoom() {
+  const code = generateCode();
+  const peerId = 'tetris-battle-' + code;
+
+  hideAllOverlays();
+  show('host-screen');
+  document.getElementById('room-code').textContent = code;
+  document.getElementById('host-status').textContent = '相手の接続を待っています...';
+
+  peer = new Peer(peerId);
+  peer.on('open', () => {
+    document.getElementById('host-status').textContent = '相手の接続を待っています...（準備完了）';
+  });
+  peer.on('connection', c => {
+    conn = c;
+    mode = 'host';
+    setupConnection();
+    // Host starts the game after connection
+    setTimeout(() => {
+      startBattle();
+      conn.send({ type: 'start' });
+    }, 500);
+  });
+  peer.on('error', e => {
+    document.getElementById('host-status').textContent = 'エラー: ' + e.type;
+  });
+}
+
+function showJoinUI() {
+  hideAllOverlays();
+  show('join-screen');
+  document.getElementById('join-code').value = '';
+  document.getElementById('join-status').classList.add('hidden');
+}
+
+function joinRoom() {
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if (code.length < 4) return;
+
+  const statusEl = document.getElementById('join-status');
+  statusEl.classList.remove('hidden');
+  statusEl.textContent = '接続中...';
+
+  peer = new Peer();
+  peer.on('open', () => {
+    conn = peer.connect('tetris-battle-' + code, { reliable: true });
+    conn.on('open', () => {
+      mode = 'guest';
+      setupConnection();
+      statusEl.textContent = '接続成功！ゲーム開始を待っています...';
+    });
+    conn.on('error', () => {
+      statusEl.textContent = '接続に失敗しました';
+    });
+  });
+  peer.on('error', e => {
+    statusEl.textContent = 'エラー: ' + e.type + '（コードを確認してください）';
+  });
+}
+
+function setupConnection() {
+  conn.on('data', data => {
+    switch (data.type) {
+      case 'start':
+        startBattle();
+        break;
+      case 'state':
+        oppState.board = data.board;
+        oppState.score = data.score;
+        oppState.level = data.level;
+        oppState.lines = data.lines;
+        oppState.activePiece = data.activePiece;
+        drawBoard(oppState, 'opp-board', false);
+        break;
+      case 'garbage':
+        pendingGarbage += data.lines;
+        break;
+      case 'gameover':
+        // Opponent lost - we win!
+        endBattle(true);
+        break;
+    }
+  });
+  conn.on('close', () => {
+    if (myState && !myState.gameOver) {
+      endBattle(true, '相手が切断しました');
+    }
+  });
+}
+
+function cancelRoom() {
+  if (peer) { peer.destroy(); peer = null; }
+  backToMenu();
+}
+
+function backToMenu() {
+  cancelAnimationFrame(animId);
+  if (conn) { conn.close(); conn = null; }
+  if (peer) { peer.destroy(); peer = null; }
+  mode = null;
+  myState = null;
+  oppState = null;
+  pendingGarbage = 0;
+  hideAllOverlays();
+  show('menu-screen');
+  document.getElementById('game-area').classList.add('hidden');
+}
+
+// ===== UI Helpers =====
+function hideAllOverlays() {
+  document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+}
+
+function show(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+
+// ===== Core Tetris Engine =====
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function rotate(matrix) {
   const n = matrix.length;
-  const result = Array.from({ length: n }, () => new Array(n).fill(0));
+  const r = Array.from({ length: n }, () => new Array(n).fill(0));
   for (let y = 0; y < n; y++)
     for (let x = 0; x < n; x++)
-      result[x][n - 1 - y] = matrix[y][x];
-  return result;
+      r[x][n - 1 - y] = matrix[y][x];
+  return r;
 }
 
 function newPiece(type) {
   const shape = SHAPES[type].map(r => [...r]);
-  return {
-    shape,
-    type,
-    x: Math.floor((COLS - shape[0].length) / 2),
-    y: 0,
-  };
+  return { shape, type, x: Math.floor((COLS - shape[0].length) / 2), y: 0 };
 }
 
 function randomType() {
   return Math.floor(Math.random() * 7) + 1;
 }
 
-function collides(board, piece, dx, dy, shape) {
-  shape = shape || piece.shape;
-  for (let y = 0; y < shape.length; y++) {
-    for (let x = 0; x < shape[y].length; x++) {
+function collides(board, p, dx, dy, shape) {
+  shape = shape || p.shape;
+  for (let y = 0; y < shape.length; y++)
+    for (let x = 0; x < shape[y].length; x++)
       if (shape[y][x]) {
-        const nx = piece.x + x + dx;
-        const ny = piece.y + y + dy;
+        const nx = p.x + x + dx, ny = p.y + y + dy;
         if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
         if (ny >= 0 && board[ny][nx]) return true;
       }
-    }
-  }
   return false;
 }
 
-function lock(board, piece) {
-  for (let y = 0; y < piece.shape.length; y++)
-    for (let x = 0; x < piece.shape[y].length; x++)
-      if (piece.shape[y][x]) {
-        const by = piece.y + y;
-        if (by < 0) { triggerGameOver(); return; }
-        board[by][piece.x + x] = piece.type;
+function lockPiece(state) {
+  const p = state.piece;
+  for (let y = 0; y < p.shape.length; y++)
+    for (let x = 0; x < p.shape[y].length; x++)
+      if (p.shape[y][x]) {
+        const by = p.y + y;
+        if (by < 0) { triggerGameOver(state); return; }
+        state.board[by][p.x + x] = p.type;
       }
 }
 
-function clearLines() {
+function clearLines(state) {
   let cleared = 0;
   for (let y = ROWS - 1; y >= 0; y--) {
-    if (board[y].every(v => v !== 0)) {
-      board.splice(y, 1);
-      board.unshift(new Array(COLS).fill(0));
+    if (state.board[y].every(v => v !== 0)) {
+      state.board.splice(y, 1);
+      state.board.unshift(new Array(COLS).fill(0));
       cleared++;
       y++;
     }
   }
   if (cleared > 0) {
     const points = [0, 100, 300, 500, 800];
-    score += points[cleared] * level;
-    lines += cleared;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(50, 1000 - (level - 1) * 80);
-    updateUI();
+    state.score += points[cleared] * state.level;
+    state.lines += cleared;
+    state.level = Math.floor(state.lines / 10) + 1;
+    state.dropInterval = Math.max(50, 1000 - (state.level - 1) * 80);
+
+    // Send garbage to opponent in battle mode
+    if (conn && conn.open && cleared >= 2) {
+      const garbageLines = cleared - 1; // 2lines→1, 3→2, 4→3
+      conn.send({ type: 'garbage', lines: garbageLines });
+    }
+  }
+  return cleared;
+}
+
+function addGarbage(state, count) {
+  for (let i = 0; i < count; i++) {
+    state.board.shift();
+    const row = new Array(COLS).fill(8); // 8 = garbage color
+    const hole = Math.floor(Math.random() * COLS);
+    row[hole] = 0;
+    state.board.push(row);
+  }
+  // Check if current piece now collides
+  if (state.piece && collides(state.board, state.piece, 0, 0)) {
+    triggerGameOver(state);
   }
 }
 
-function updateUI() {
-  document.getElementById('score').textContent = score;
-  document.getElementById('level').textContent = level;
-  document.getElementById('lines').textContent = lines;
+function spawnPiece(state) {
+  state.piece = newPiece(state.nextType);
+  state.nextType = randomType();
+  if (collides(state.board, state.piece, 0, 0)) {
+    triggerGameOver(state);
+  }
 }
 
-function drawBlock(context, x, y, type, size) {
-  const color = COLORS[type];
-  context.fillStyle = color;
-  context.fillRect(x * size, y * size, size, size);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.2)';
-  context.fillRect(x * size, y * size, size, 2);
-  context.fillRect(x * size, y * size, 2, size);
-  // shadow
-  context.fillStyle = 'rgba(0,0,0,0.3)';
-  context.fillRect(x * size + size - 2, y * size, 2, size);
-  context.fillRect(x * size, y * size + size - 2, size, 2);
-  // grid line
-  context.strokeStyle = '#0f0f23';
-  context.strokeRect(x * size, y * size, size, size);
+function triggerGameOver(state) {
+  state.gameOver = true;
 }
 
-function drawGhost() {
-  let gy = 0;
-  while (!collides(board, piece, 0, gy + 1)) gy++;
-  if (gy === 0) return;
-  ctx.globalAlpha = 0.2;
-  for (let y = 0; y < piece.shape.length; y++)
-    for (let x = 0; x < piece.shape[y].length; x++)
-      if (piece.shape[y][x])
-        drawBlock(ctx, piece.x + x, piece.y + y + gy, piece.type, BLOCK);
-  ctx.globalAlpha = 1;
+function createState() {
+  const nextType = randomType();
+  const state = {
+    board: createBoard(),
+    piece: null,
+    nextType,
+    score: 0, lines: 0, level: 1,
+    dropInterval: 1000, dropTimer: 0,
+    gameOver: false,
+  };
+  spawnPiece(state);
+  return state;
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// ===== Drawing =====
+function drawBlock(ctx, x, y, type, size) {
+  ctx.fillStyle = COLORS[type];
+  ctx.fillRect(x * size, y * size, size, size);
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillRect(x * size, y * size, size, 2);
+  ctx.fillRect(x * size, y * size, 2, size);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x * size + size - 2, y * size, 2, size);
+  ctx.fillRect(x * size, y * size + size - 2, size, 2);
+  ctx.strokeStyle = '#0f0f23';
+  ctx.strokeRect(x * size, y * size, size, size);
+}
 
-  // grid
+function drawBoard(state, canvasId, showGhost) {
+  const cvs = document.getElementById(canvasId);
+  const ctx = cvs.getContext('2d');
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+
+  // Grid
   ctx.strokeStyle = '#1a1a3a';
   for (let y = 0; y < ROWS; y++)
     for (let x = 0; x < COLS; x++)
       ctx.strokeRect(x * BLOCK, y * BLOCK, BLOCK, BLOCK);
 
-  // board
+  // Board cells
   for (let y = 0; y < ROWS; y++)
     for (let x = 0; x < COLS; x++)
-      if (board[y][x])
-        drawBlock(ctx, x, y, board[y][x], BLOCK);
+      if (state.board[y][x])
+        drawBlock(ctx, x, y, state.board[y][x], BLOCK);
 
-  // ghost + piece
-  if (piece) {
-    drawGhost();
-    for (let y = 0; y < piece.shape.length; y++)
-      for (let x = 0; x < piece.shape[y].length; x++)
-        if (piece.shape[y][x])
-          drawBlock(ctx, piece.x + x, piece.y + y, piece.type, BLOCK);
-  }
-
-  // next
-  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  if (nextPiece) {
-    const s = SHAPES[nextPiece];
-    const size = 24;
-    const ox = (nextCanvas.width - s[0].length * size) / 2;
-    const oy = (nextCanvas.height - s.length * size) / 2;
-    for (let y = 0; y < s.length; y++)
-      for (let x = 0; x < s[y].length; x++)
-        if (s[y][x]) {
-          nextCtx.fillStyle = COLORS[s[y][x]];
-          nextCtx.fillRect(ox + x * size, oy + y * size, size, size);
-          nextCtx.strokeStyle = '#0f0f23';
-          nextCtx.strokeRect(ox + x * size, oy + y * size, size, size);
-        }
+  // Active piece
+  const p = showGhost ? state.piece : state.activePiece;
+  if (p) {
+    // Ghost (only for own board)
+    if (showGhost) {
+      let gy = 0;
+      while (!collides(state.board, p, 0, gy + 1)) gy++;
+      if (gy > 0) {
+        ctx.globalAlpha = 0.2;
+        for (let y = 0; y < p.shape.length; y++)
+          for (let x = 0; x < p.shape[y].length; x++)
+            if (p.shape[y][x])
+              drawBlock(ctx, p.x + x, p.y + y + gy, p.type, BLOCK);
+        ctx.globalAlpha = 1;
+      }
+    }
+    for (let y = 0; y < p.shape.length; y++)
+      for (let x = 0; x < p.shape[y].length; x++)
+        if (p.shape[y][x])
+          drawBlock(ctx, p.x + x, p.y + y, p.type, BLOCK);
   }
 }
 
-function drop() {
-  if (!collides(board, piece, 0, 1)) {
-    piece.y++;
-  } else {
-    lock(board, piece);
-    if (gameOver) return;
-    clearLines();
-    spawn();
-  }
+function drawNext(state, canvasId) {
+  const cvs = document.getElementById(canvasId);
+  const ctx = cvs.getContext('2d');
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+  const s = SHAPES[state.nextType];
+  const size = 24;
+  const ox = (cvs.width - s[0].length * size) / 2;
+  const oy = (cvs.height - s.length * size) / 2;
+  for (let y = 0; y < s.length; y++)
+    for (let x = 0; x < s[y].length; x++)
+      if (s[y][x]) {
+        ctx.fillStyle = COLORS[s[y][x]];
+        ctx.fillRect(ox + x * size, oy + y * size, size, size);
+        ctx.strokeStyle = '#0f0f23';
+        ctx.strokeRect(ox + x * size, oy + y * size, size, size);
+      }
 }
 
-function hardDrop() {
-  let d = 0;
-  while (!collides(board, piece, 0, d + 1)) d++;
-  score += d * 2;
-  piece.y += d;
-  lock(board, piece);
-  if (gameOver) return;
-  clearLines();
-  spawn();
-  updateUI();
+function updateUI(state, prefix) {
+  document.getElementById(prefix + '-score').textContent = state.score;
+  document.getElementById(prefix + '-level').textContent = state.level;
+  document.getElementById(prefix + '-lines').textContent = state.lines;
 }
 
-function spawn() {
-  piece = newPiece(nextPiece);
-  nextPiece = randomType();
-  if (collides(board, piece, 0, 0)) {
-    triggerGameOver();
-  }
+// ===== Send state to opponent =====
+function sendState() {
+  if (!conn || !conn.open || !myState) return;
+  conn.send({
+    type: 'state',
+    board: myState.board,
+    score: myState.score,
+    level: myState.level,
+    lines: myState.lines,
+    activePiece: myState.piece ? {
+      shape: myState.piece.shape,
+      type: myState.piece.type,
+      x: myState.piece.x,
+      y: myState.piece.y,
+    } : null,
+  });
 }
 
-function triggerGameOver() {
-  gameOver = true;
-  cancelAnimationFrame(animId);
-  document.getElementById('final-score').textContent = score;
-  document.getElementById('gameover-screen').classList.remove('hidden');
-}
+let sendTimer = 0;
+const SEND_INTERVAL = 100; // ms
 
-let lastTime = 0;
+// ===== Game Loop =====
 function gameLoop(time) {
-  if (gameOver) return;
   const delta = time - lastTime;
   lastTime = time;
-  if (!paused) {
-    dropTimer += delta;
-    if (dropTimer >= dropInterval) {
-      drop();
-      dropTimer = 0;
+
+  if (myState && !myState.gameOver) {
+    // Apply pending garbage
+    if (pendingGarbage > 0) {
+      addGarbage(myState, pendingGarbage);
+      pendingGarbage = 0;
     }
-    draw();
+
+    myState.dropTimer += delta;
+    if (myState.dropTimer >= myState.dropInterval) {
+      if (!collides(myState.board, myState.piece, 0, 1)) {
+        myState.piece.y++;
+      } else {
+        lockPiece(myState, myState.piece);
+        if (!myState.gameOver) {
+          clearLines(myState);
+          spawnPiece(myState);
+        }
+      }
+      myState.dropTimer = 0;
+    }
+
+    drawBoard(myState, 'my-board', true);
+    drawNext(myState, 'my-next');
+    updateUI(myState, 'my');
+
+    // Send to opponent periodically
+    if (mode !== 'solo') {
+      sendTimer += delta;
+      if (sendTimer >= SEND_INTERVAL) {
+        sendState();
+        sendTimer = 0;
+      }
+    }
+
+    if (myState.gameOver) {
+      if (mode === 'solo') {
+        document.getElementById('solo-final-score').textContent = myState.score;
+        show('solo-gameover-screen');
+      } else {
+        conn.send({ type: 'gameover' });
+        endBattle(false);
+      }
+      return;
+    }
   }
+
   animId = requestAnimationFrame(gameLoop);
 }
 
-function startGame() {
-  document.getElementById('start-screen').classList.add('hidden');
-  document.getElementById('gameover-screen').classList.add('hidden');
-  document.getElementById('pause-screen').classList.add('hidden');
+// ===== Start Games =====
+function startSolo() {
+  mode = 'solo';
+  hideAllOverlays();
+  document.getElementById('game-area').classList.remove('hidden');
+  document.getElementById('opp-area').classList.add('hidden');
+  document.getElementById('center-col').classList.add('hidden');
 
-  board = createBoard();
-  score = 0;
-  lines = 0;
-  level = 1;
-  dropInterval = 1000;
-  dropTimer = 0;
-  paused = false;
-  gameOver = false;
-
-  nextPiece = randomType();
-  spawn();
-  updateUI();
-  draw();
-
+  myState = createState();
+  pendingGarbage = 0;
   lastTime = performance.now();
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(gameLoop);
 }
 
-document.addEventListener('keydown', e => {
-  if (gameOver) return;
+function startBattle() {
+  hideAllOverlays();
+  document.getElementById('game-area').classList.remove('hidden');
+  document.getElementById('opp-area').classList.remove('hidden');
+  document.getElementById('center-col').classList.remove('hidden');
 
-  if (e.key === 'p' || e.key === 'P') {
-    paused = !paused;
-    document.getElementById('pause-screen').classList.toggle('hidden', !paused);
-    if (!paused) lastTime = performance.now();
-    e.preventDefault();
-    return;
+  myState = createState();
+  oppState = {
+    board: createBoard(),
+    score: 0, level: 1, lines: 0,
+    activePiece: null,
+    gameOver: false,
+  };
+  pendingGarbage = 0;
+  lastTime = performance.now();
+  cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function endBattle(won, reason) {
+  cancelAnimationFrame(animId);
+  if (myState) myState.gameOver = true;
+
+  const titleEl = document.getElementById('result-title');
+  const detailEl = document.getElementById('result-detail');
+
+  if (won) {
+    titleEl.textContent = 'YOU WIN!';
+    titleEl.className = 'win-text';
+  } else {
+    titleEl.textContent = 'YOU LOSE';
+    titleEl.className = 'lose-text';
   }
+  detailEl.textContent = reason || ('スコア: ' + (myState ? myState.score : 0));
+  show('result-screen');
+}
 
-  if (paused) return;
+// ===== Input =====
+document.addEventListener('keydown', e => {
+  if (!myState || myState.gameOver) return;
+
+  const p = myState.piece;
+  if (!p) return;
 
   switch (e.key) {
     case 'ArrowLeft':
-      if (!collides(board, piece, -1, 0)) piece.x--;
+      if (!collides(myState.board, p, -1, 0)) p.x--;
       break;
     case 'ArrowRight':
-      if (!collides(board, piece, 1, 0)) piece.x++;
+      if (!collides(myState.board, p, 1, 0)) p.x++;
       break;
     case 'ArrowDown':
-      if (!collides(board, piece, 0, 1)) {
-        piece.y++;
-        score += 1;
-        updateUI();
+      if (!collides(myState.board, p, 0, 1)) {
+        p.y++;
+        myState.score += 1;
       }
       break;
-    case 'ArrowUp':
-      const rotated = rotate(piece.shape);
-      if (!collides(board, piece, 0, 0, rotated)) {
-        piece.shape = rotated;
-      } else if (!collides(board, piece, 1, 0, rotated)) {
-        piece.x++;
-        piece.shape = rotated;
-      } else if (!collides(board, piece, -1, 0, rotated)) {
-        piece.x--;
-        piece.shape = rotated;
+    case 'ArrowUp': {
+      const rotated = rotate(p.shape);
+      if (!collides(myState.board, p, 0, 0, rotated)) {
+        p.shape = rotated;
+      } else if (!collides(myState.board, p, 1, 0, rotated)) {
+        p.x++; p.shape = rotated;
+      } else if (!collides(myState.board, p, -1, 0, rotated)) {
+        p.x--; p.shape = rotated;
       }
       break;
-    case ' ':
-      hardDrop();
+    }
+    case ' ': {
+      let d = 0;
+      while (!collides(myState.board, p, 0, d + 1)) d++;
+      myState.score += d * 2;
+      p.y += d;
+      lockPiece(myState);
+      if (!myState.gameOver) {
+        clearLines(myState);
+        spawnPiece(myState);
+      }
       break;
+    }
+    default: return;
   }
   e.preventDefault();
-  draw();
+  drawBoard(myState, 'my-board', true);
+  updateUI(myState, 'my');
 });
 </script>
 </body>

@@ -253,6 +253,10 @@
     </div>
     <div class="side-panel">
       <div class="panel-box">
+        <h3>HOLD</h3>
+        <canvas class="next-canvas" id="my-hold" width="100" height="100"></canvas>
+      </div>
+      <div class="panel-box">
         <h3>NEXT</h3>
         <canvas class="next-canvas" id="my-next" width="100" height="100"></canvas>
       </div>
@@ -273,7 +277,8 @@
         ← → : 移動<br>
         ↑ : 回転<br>
         ↓ : 加速<br>
-        Space : 即落下
+        Space : 即落下<br>
+        C : ホールド
       </div>
     </div>
   </div>
@@ -558,12 +563,27 @@ function triggerGameOver(state) {
   state.gameOver = true;
 }
 
+function holdPiece(state) {
+  if (state.holdUsed) return; // can only hold once per drop
+  state.holdUsed = true;
+  const currentType = state.piece.type;
+  if (state.holdType) {
+    state.piece = newPiece(state.holdType);
+    state.holdType = currentType;
+  } else {
+    state.holdType = currentType;
+    spawnPiece(state);
+  }
+}
+
 function createState() {
   const nextType = randomType();
   const state = {
     board: createBoard(),
     piece: null,
     nextType,
+    holdType: null,
+    holdUsed: false,
     score: 0, lines: 0, level: 1,
     dropInterval: 1000, dropTimer: 0,
     gameOver: false,
@@ -644,6 +664,27 @@ function drawNext(state, canvasId) {
       }
 }
 
+function drawHold(state, canvasId) {
+  const cvs = document.getElementById(canvasId);
+  const ctx = cvs.getContext('2d');
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+  if (!state.holdType) return;
+  const s = SHAPES[state.holdType];
+  const size = 24;
+  const ox = (cvs.width - s[0].length * size) / 2;
+  const oy = (cvs.height - s.length * size) / 2;
+  ctx.globalAlpha = state.holdUsed ? 0.3 : 1;
+  for (let y = 0; y < s.length; y++)
+    for (let x = 0; x < s[y].length; x++)
+      if (s[y][x]) {
+        ctx.fillStyle = COLORS[s[y][x]];
+        ctx.fillRect(ox + x * size, oy + y * size, size, size);
+        ctx.strokeStyle = '#0f0f23';
+        ctx.strokeRect(ox + x * size, oy + y * size, size, size);
+      }
+  ctx.globalAlpha = 1;
+}
+
 function updateUI(state, prefix) {
   document.getElementById(prefix + '-score').textContent = state.score;
   document.getElementById(prefix + '-level').textContent = state.level;
@@ -692,6 +733,7 @@ function gameLoop(time) {
         if (!myState.gameOver) {
           clearLines(myState);
           spawnPiece(myState);
+          myState.holdUsed = false;
         }
       }
       myState.dropTimer = 0;
@@ -699,6 +741,7 @@ function gameLoop(time) {
 
     drawBoard(myState, 'my-board', true);
     drawNext(myState, 'my-next');
+    drawHold(myState, 'my-hold');
     updateUI(myState, 'my');
 
     // Send to opponent periodically
@@ -842,9 +885,14 @@ document.addEventListener('keydown', e => {
       if (!myState.gameOver) {
         clearLines(myState);
         spawnPiece(myState);
+        myState.holdUsed = false;
       }
       break;
     }
+    case 'c':
+    case 'C':
+      holdPiece(myState);
+      break;
     default: return;
   }
   e.preventDefault();

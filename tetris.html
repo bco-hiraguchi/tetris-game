@@ -170,6 +170,22 @@
   .hidden { display: none; }
   .win-text { color: #00f000; }
   .lose-text { color: #f00000; }
+  #countdown-screen {
+    background: rgba(0,0,0,0.6);
+    z-index: 20;
+  }
+  #countdown-number {
+    font-size: 120px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 40px rgba(0,240,240,0.8);
+    animation: countPop 0.5s ease-out;
+  }
+  @keyframes countPop {
+    0% { transform: scale(2); opacity: 0; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
 </style>
 </head>
 <body>
@@ -241,6 +257,11 @@
     <button onclick="startSolo()">リトライ</button>
     <button onclick="backToMenu()">メニュー</button>
   </div>
+</div>
+
+<!-- Countdown -->
+<div class="overlay hidden" id="countdown-screen">
+  <div id="countdown-number">3</div>
 </div>
 
 <!-- Game Area -->
@@ -773,6 +794,38 @@ function gameLoop(time) {
   animId = requestAnimationFrame(gameLoop);
 }
 
+// ===== Countdown =====
+function countdown(callback) {
+  countingDown = true;
+  const el = document.getElementById('countdown-number');
+  const screen = document.getElementById('countdown-screen');
+  screen.classList.remove('hidden');
+  let count = 3;
+
+  function tick() {
+    if (count > 0) {
+      el.textContent = count;
+      // Re-trigger animation
+      el.style.animation = 'none';
+      el.offsetHeight; // force reflow
+      el.style.animation = '';
+      count--;
+      setTimeout(tick, 800);
+    } else {
+      el.textContent = 'GO!';
+      el.style.animation = 'none';
+      el.offsetHeight;
+      el.style.animation = '';
+      setTimeout(() => {
+        screen.classList.add('hidden');
+        countingDown = false;
+        callback();
+      }, 500);
+    }
+  }
+  tick();
+}
+
 // ===== Start Games =====
 function startSolo() {
   mode = 'solo';
@@ -783,9 +836,18 @@ function startSolo() {
 
   myState = createState();
   pendingGarbage = 0;
-  lastTime = performance.now();
-  cancelAnimationFrame(animId);
-  animId = requestAnimationFrame(gameLoop);
+
+  // Draw initial board during countdown
+  drawBoard(myState, 'my-board', true);
+  drawNext(myState, 'my-next');
+  drawHold(myState, 'my-hold');
+  updateUI(myState, 'my');
+
+  countdown(() => {
+    lastTime = performance.now();
+    cancelAnimationFrame(animId);
+    animId = requestAnimationFrame(gameLoop);
+  });
 }
 
 function startBattle() {
@@ -802,9 +864,19 @@ function startBattle() {
     gameOver: false,
   };
   pendingGarbage = 0;
-  lastTime = performance.now();
-  cancelAnimationFrame(animId);
-  animId = requestAnimationFrame(gameLoop);
+
+  // Draw initial board during countdown
+  drawBoard(myState, 'my-board', true);
+  drawNext(myState, 'my-next');
+  drawHold(myState, 'my-hold');
+  updateUI(myState, 'my');
+  drawBoard(oppState, 'opp-board', false);
+
+  countdown(() => {
+    lastTime = performance.now();
+    cancelAnimationFrame(animId);
+    animId = requestAnimationFrame(gameLoop);
+  });
 }
 
 function endBattle(won, reason) {
@@ -853,8 +925,10 @@ function requestRematch() {
 }
 
 // ===== Input =====
+let countingDown = false;
+
 document.addEventListener('keydown', e => {
-  if (!myState || myState.gameOver) return;
+  if (!myState || myState.gameOver || countingDown) return;
 
   const p = myState.piece;
   if (!p) return;

@@ -325,6 +325,7 @@ let animId = null, lastTime = 0;
 let pendingGarbage = 0;
 let rematchRequested = false;
 let oppRematchRequested = false;
+let battleStarted = false;
 
 // ===== PeerJS =====
 function generateCode() {
@@ -417,8 +418,9 @@ function setupConnection() {
         break;
       case 'rematch-request':
         oppRematchRequested = true;
-        if (rematchRequested) {
+        if (rematchRequested && !battleStarted) {
           // Both agreed - start rematch
+          battleStarted = true;
           conn.send({ type: 'rematch-accept' });
           startBattle();
         } else {
@@ -427,7 +429,10 @@ function setupConnection() {
         }
         break;
       case 'rematch-accept':
-        startBattle();
+        if (!battleStarted) {
+          battleStarted = true;
+          startBattle();
+        }
         break;
     }
   });
@@ -807,6 +812,7 @@ function endBattle(won, reason) {
   if (myState) myState.gameOver = true;
   rematchRequested = false;
   oppRematchRequested = false;
+  battleStarted = false;
 
   const titleEl = document.getElementById('result-title');
   const detailEl = document.getElementById('result-detail');
@@ -835,8 +841,9 @@ function requestRematch() {
   rematchRequested = true;
   conn.send({ type: 'rematch-request' });
 
-  if (oppRematchRequested) {
+  if (oppRematchRequested && !battleStarted) {
     // Both agreed
+    battleStarted = true;
     conn.send({ type: 'rematch-accept' });
     startBattle();
   } else {

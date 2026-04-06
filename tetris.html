@@ -253,9 +253,13 @@
 <div class="overlay hidden" id="solo-gameover-screen">
   <div class="overlay-content">
     <h2>GAME OVER</h2>
-    <p>スコア: <span id="solo-final-score">0</span></p>
-    <button onclick="startSolo()">リトライ</button>
-    <button onclick="backToMenu()">メニュー</button>
+    <table style="margin: 12px auto 20px; text-align: left; border-collapse: collapse;">
+      <tr><td style="padding: 4px 16px; color: #8888cc;">スコア</td><td style="padding: 4px 16px; font-size: 22px; font-weight: bold;" id="solo-final-score">0</td></tr>
+      <tr><td style="padding: 4px 16px; color: #8888cc;">レベル</td><td style="padding: 4px 16px; font-size: 22px; font-weight: bold;" id="solo-final-level">1</td></tr>
+      <tr><td style="padding: 4px 16px; color: #8888cc;">ライン</td><td style="padding: 4px 16px; font-size: 22px; font-weight: bold;" id="solo-final-lines">0</td></tr>
+    </table>
+    <button class="primary" onclick="startSolo()">もう一度プレイ</button>
+    <button onclick="backToMenu()">タイトルに戻る</button>
   </div>
 </div>
 
@@ -782,8 +786,11 @@ function gameLoop(time) {
     }
 
     if (myState.gameOver) {
+      cancelAnimationFrame(animId);
       if (mode === 'solo') {
         document.getElementById('solo-final-score').textContent = myState.score;
+        document.getElementById('solo-final-level').textContent = myState.level;
+        document.getElementById('solo-final-lines').textContent = myState.lines;
         show('solo-gameover-screen');
       } else {
         conn.send({ type: 'gameover' });

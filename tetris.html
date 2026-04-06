@@ -214,7 +214,21 @@
 <div class="overlay hidden" id="result-screen">
   <div class="overlay-content">
     <h2 id="result-title">GAME OVER</h2>
-    <p id="result-detail"></p>
+    <div id="result-scores" style="margin: 20px 0;">
+      <table style="margin: 0 auto; text-align: left; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 6px 16px; color: #8888cc;">あなた</td>
+          <td style="padding: 6px 16px; font-size: 22px; font-weight: bold;" id="result-my-score">0</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 16px; color: #8a6a6a;">相手</td>
+          <td style="padding: 6px 16px; font-size: 22px; font-weight: bold;" id="result-opp-score">0</td>
+        </tr>
+      </table>
+    </div>
+    <p id="result-detail" style="margin-bottom: 8px;"></p>
+    <p id="rematch-status" class="status-msg hidden"></p>
+    <button class="primary" onclick="requestRematch()">再戦</button>
     <button onclick="backToMenu()">メニューに戻る</button>
   </div>
 </div>
@@ -304,6 +318,8 @@ let peer = null, conn = null;
 let myState = null, oppState = null;
 let animId = null, lastTime = 0;
 let pendingGarbage = 0;
+let rematchRequested = false;
+let oppRematchRequested = false;
 
 // ===== PeerJS =====
 function generateCode() {
@@ -393,6 +409,20 @@ function setupConnection() {
       case 'gameover':
         // Opponent lost - we win!
         endBattle(true);
+        break;
+      case 'rematch-request':
+        oppRematchRequested = true;
+        if (rematchRequested) {
+          // Both agreed - start rematch
+          conn.send({ type: 'rematch-accept' });
+          startBattle();
+        } else {
+          document.getElementById('rematch-status').textContent = '相手が再戦を希望しています';
+          document.getElementById('rematch-status').classList.remove('hidden');
+        }
+        break;
+      case 'rematch-accept':
+        startBattle();
         break;
     }
   });
@@ -732,6 +762,8 @@ function startBattle() {
 function endBattle(won, reason) {
   cancelAnimationFrame(animId);
   if (myState) myState.gameOver = true;
+  rematchRequested = false;
+  oppRematchRequested = false;
 
   const titleEl = document.getElementById('result-title');
   const detailEl = document.getElementById('result-detail');
@@ -743,8 +775,31 @@ function endBattle(won, reason) {
     titleEl.textContent = 'YOU LOSE';
     titleEl.className = 'lose-text';
   }
-  detailEl.textContent = reason || ('スコア: ' + (myState ? myState.score : 0));
+
+  document.getElementById('result-my-score').textContent = myState ? myState.score : 0;
+  document.getElementById('result-opp-score').textContent = oppState ? oppState.score : 0;
+  detailEl.textContent = reason || '';
+  document.getElementById('rematch-status').classList.add('hidden');
   show('result-screen');
+}
+
+function requestRematch() {
+  if (!conn || !conn.open) {
+    document.getElementById('rematch-status').textContent = '相手との接続が切れています';
+    document.getElementById('rematch-status').classList.remove('hidden');
+    return;
+  }
+  rematchRequested = true;
+  conn.send({ type: 'rematch-request' });
+
+  if (oppRematchRequested) {
+    // Both agreed
+    conn.send({ type: 'rematch-accept' });
+    startBattle();
+  } else {
+    document.getElementById('rematch-status').textContent = '相手の応答を待っています...';
+    document.getElementById('rematch-status').classList.remove('hidden');
+  }
 }
 
 // ===== Input =====

@@ -624,28 +624,30 @@ function gameLoop(time) {
   const delta = time - lastTime; lastTime = time;
   if (myState && !myState.gameOver) {
     if (pendingGarbage > 0) { addGarbage(myState, pendingGarbage); pendingGarbage = 0; }
-    myState.dropTimer += delta;
-    if (myState.dropTimer >= myState.dropInterval) {
-      if (!collides(myState.board, myState.piece, 0, 1)) { myState.piece.y++; }
-      else { lockPiece(myState); if (!myState.gameOver) { clearLines(myState); spawnPiece(myState); myState.holdUsed = false; } }
-      myState.dropTimer = 0;
-    }
-    drawBoard(myState, 'my-board', true); drawNext(myState, 'my-next'); drawHold(myState, 'my-hold'); updateUI(myState, 'my');
-    if (mode !== 'solo') { sendTimer += delta; if (sendTimer >= SEND_INTERVAL) { sendState(); sendTimer = 0; } }
-    if (myState.gameOver) {
-      cancelAnimationFrame(animId);
-      if (mode === 'solo') {
-        document.getElementById('solo-final-score').textContent = myState.score;
-        document.getElementById('solo-final-level').textContent = myState.level;
-        document.getElementById('solo-final-lines').textContent = myState.lines;
-        saveSoloResult(myState);
-        show('solo-gameover-screen');
-      } else {
-        conn.send({ type: 'gameover' });
-        endBattle(false);
+    if (!myState.gameOver) {
+      myState.dropTimer += delta;
+      if (myState.dropTimer >= myState.dropInterval) {
+        if (!collides(myState.board, myState.piece, 0, 1)) { myState.piece.y++; }
+        else { lockPiece(myState); if (!myState.gameOver) { clearLines(myState); spawnPiece(myState); myState.holdUsed = false; } }
+        myState.dropTimer = 0;
       }
-      return;
+      drawBoard(myState, 'my-board', true); drawNext(myState, 'my-next'); drawHold(myState, 'my-hold'); updateUI(myState, 'my');
+      if (mode !== 'solo') { sendTimer += delta; if (sendTimer >= SEND_INTERVAL) { sendState(); sendTimer = 0; } }
     }
+  }
+  if (myState && myState.gameOver) {
+    cancelAnimationFrame(animId);
+    if (mode === 'solo') {
+      document.getElementById('solo-final-score').textContent = myState.score;
+      document.getElementById('solo-final-level').textContent = myState.level;
+      document.getElementById('solo-final-lines').textContent = myState.lines;
+      saveSoloResult(myState);
+      show('solo-gameover-screen');
+    } else {
+      conn.send({ type: 'gameover' });
+      endBattle(false);
+    }
+    return;
   }
   animId = requestAnimationFrame(gameLoop);
 }

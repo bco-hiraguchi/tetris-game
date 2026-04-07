@@ -137,22 +137,22 @@ function showRegisterForm() {
 async function saveSoloResult(state) {
   if (!currentUser) return;
   const uid = currentUser.uid;
-
-  // Save score record
-  await addDoc(collection(db, 'scores'), {
-    uid, name: userData.name,
-    score: state.score, level: state.level, lines: state.lines,
-    mode: 'solo', date: serverTimestamp()
-  });
-
-  // Update user stats
-  const updates = { totalGames: increment(1) };
-  if (state.score > (userData.highScore || 0)) {
-    updates.highScore = state.score;
-    userData.highScore = state.score;
+  try {
+    await addDoc(collection(db, 'scores'), {
+      uid, name: userData.name,
+      score: state.score, level: state.level, lines: state.lines,
+      mode: 'solo', date: serverTimestamp()
+    });
+    const updates = { totalGames: increment(1) };
+    if (state.score > (userData.highScore || 0)) {
+      updates.highScore = state.score;
+      userData.highScore = state.score;
+    }
+    userData.totalGames = (userData.totalGames || 0) + 1;
+    await updateDoc(doc(db, 'users', uid), updates);
+  } catch (e) {
+    console.error('saveSoloResult error:', e);
   }
-  userData.totalGames = (userData.totalGames || 0) + 1;
-  await updateDoc(doc(db, 'users', uid), updates);
 }
 
 async function saveBattleResult(won) {
@@ -190,19 +190,24 @@ async function showRanking() {
   const tbody = document.getElementById('ranking-body');
   tbody.innerHTML = '<tr><td colspan="4" style="color:#aaa;">読み込み中...</td></tr>';
 
-  const q = query(collection(db, 'scores'), orderBy('score', 'desc'), limit(20));
-  const snap = await getDocs(q);
-  tbody.innerHTML = '';
-  let rank = 1;
-  snap.forEach(d => {
-    const data = d.data();
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${rank}</td><td>${escapeHtml(data.name)}</td><td>${data.score}</td><td>${data.mode === 'solo' ? 'ソロ' : '対戦'}</td>`;
-    tbody.appendChild(tr);
-    rank++;
-  });
-  if (rank === 1) {
-    tbody.innerHTML = '<tr><td colspan="4" style="color:#aaa;">まだデータがありません</td></tr>';
+  try {
+    const q = query(collection(db, 'scores'), orderBy('score', 'desc'), limit(20));
+    const snap = await getDocs(q);
+    tbody.innerHTML = '';
+    let rank = 1;
+    snap.forEach(d => {
+      const data = d.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${rank}</td><td>${escapeHtml(data.name)}</td><td>${data.score}</td><td>${data.mode === 'solo' ? 'ソロ' : '対戦'}</td>`;
+      tbody.appendChild(tr);
+      rank++;
+    });
+    if (rank === 1) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:#aaa;">まだデータがありません</td></tr>';
+    }
+  } catch (e) {
+    console.error('showRanking error:', e);
+    tbody.innerHTML = `<tr><td colspan="4" style="color:#f04040;">読み込みエラー: ${e.message}</td></tr>`;
   }
 }
 

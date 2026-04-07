@@ -332,6 +332,7 @@ function createRoom() {
     mode = 'host';
     setupConnection();
     setTimeout(() => {
+      conn.send({ type: 'name', name: userData ? userData.name : 'Player' });
       startBattle();
       conn.send({ type: 'start' });
     }, 500);
@@ -361,6 +362,7 @@ function joinRoom() {
     conn.on('open', () => {
       mode = 'guest';
       setupConnection();
+      conn.send({ type: 'name', name: userData ? userData.name : 'Player' });
       statusEl.textContent = '接続成功！ゲーム開始を待っています...';
     });
     conn.on('error', () => { statusEl.textContent = '接続に失敗しました'; });
@@ -373,6 +375,9 @@ function joinRoom() {
 function setupConnection() {
   conn.on('data', data => {
     switch (data.type) {
+      case 'name':
+        document.getElementById('opp-label').textContent = data.name || '相手';
+        break;
       case 'start': startBattle(); break;
       case 'state':
         oppState.board = data.board;
@@ -668,6 +673,7 @@ function startSolo() {
   document.getElementById('game-area').classList.remove('hidden');
   document.getElementById('opp-area').classList.add('hidden');
   document.getElementById('center-col').classList.add('hidden');
+  document.getElementById('my-label').textContent = userData ? userData.name : 'あなた';
   myState = createState(); pendingGarbage = 0;
   drawBoard(myState, 'my-board', true); drawNext(myState, 'my-next'); drawHold(myState, 'my-hold'); updateUI(myState, 'my');
   countdown(() => { lastTime = performance.now(); cancelAnimationFrame(animId); animId = requestAnimationFrame(gameLoop); });
@@ -678,6 +684,7 @@ function startBattle() {
   document.getElementById('game-area').classList.remove('hidden');
   document.getElementById('opp-area').classList.remove('hidden');
   document.getElementById('center-col').classList.remove('hidden');
+  document.getElementById('my-label').textContent = userData ? userData.name : 'あなた';
   myState = createState();
   oppState = { board: createBoard(), score: 0, level: 1, lines: 0, activePiece: null, gameOver: false };
   pendingGarbage = 0;
@@ -694,6 +701,8 @@ function endBattle(won, reason) {
   const detailEl = document.getElementById('result-detail');
   if (won) { titleEl.textContent = 'YOU WIN!'; titleEl.className = 'win-text'; }
   else { titleEl.textContent = 'YOU LOSE'; titleEl.className = 'lose-text'; }
+  document.getElementById('result-my-name').textContent = userData ? userData.name : 'あなた';
+  document.getElementById('result-opp-name').textContent = document.getElementById('opp-label').textContent || '相手';
   document.getElementById('result-my-score').textContent = myState ? myState.score : 0;
   document.getElementById('result-opp-score').textContent = oppState ? oppState.score : 0;
   detailEl.textContent = reason || '';
@@ -929,8 +938,8 @@ window.requestRematch = requestRematch;
     <h2 id="result-title">GAME OVER</h2>
     <div style="margin: 20px 0;">
       <table style="margin: 0 auto; text-align: left; border-collapse: collapse;">
-        <tr><td style="padding: 6px 16px; color: #8888cc;">あなた</td><td style="padding: 6px 16px; font-size: 22px; font-weight: bold;" id="result-my-score">0</td></tr>
-        <tr><td style="padding: 6px 16px; color: #8a6a6a;">相手</td><td style="padding: 6px 16px; font-size: 22px; font-weight: bold;" id="result-opp-score">0</td></tr>
+        <tr><td style="padding: 6px 16px; color: #8888cc;" id="result-my-name">あなた</td><td style="padding: 6px 16px; font-size: 22px; font-weight: bold;" id="result-my-score">0</td></tr>
+        <tr><td style="padding: 6px 16px; color: #8a6a6a;" id="result-opp-name">相手</td><td style="padding: 6px 16px; font-size: 22px; font-weight: bold;" id="result-opp-score">0</td></tr>
       </table>
     </div>
     <p id="result-detail" style="margin-bottom: 8px;"></p>
@@ -966,7 +975,7 @@ window.requestRematch = requestRematch;
       <div class="panel-box"><h3>HOLD</h3><canvas class="next-canvas" id="my-hold" width="100" height="100"></canvas></div>
     </div>
     <div class="board-wrapper">
-      <div class="player-label">あなた</div>
+      <div class="player-label" id="my-label">あなた</div>
       <canvas class="board" id="my-board" width="300" height="600"></canvas>
     </div>
     <div class="side-panel">

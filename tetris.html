@@ -7,7 +7,7 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, updateEmail, verifyBeforeUpdateEmail, reauthenticateWithCredential, EmailAuthProvider } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, updateDoc, addDoc, collection, query, orderBy, limit, getDocs, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -212,6 +212,60 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
+// ===== Profile Edit =====
+function showProfile() {
+  hideAllOverlays();
+  show('profile-screen');
+  document.getElementById('profile-name').value = userData ? userData.name : '';
+  document.getElementById('profile-email').value = currentUser ? currentUser.email : '';
+  document.getElementById('profile-password').value = '';
+  document.getElementById('profile-error').textContent = '';
+  document.getElementById('profile-success').textContent = '';
+}
+
+async function saveProfile() {
+  const newName = document.getElementById('profile-name').value.trim();
+  const newEmail = document.getElementById('profile-email').value.trim();
+  const password = document.getElementById('profile-password').value;
+  const errEl = document.getElementById('profile-error');
+  const sucEl = document.getElementById('profile-success');
+  errEl.textContent = '';
+  sucEl.textContent = '';
+
+  if (!newName) { errEl.textContent = 'ユーザー名を入力してください'; return; }
+  if (!newEmail) { errEl.textContent = 'メールアドレスを入力してください'; return; }
+
+  const emailChanged = newEmail !== currentUser.email;
+  if (emailChanged && !password) {
+    errEl.textContent = 'メールアドレスを変更するには現在のパスワードを入力してください';
+    return;
+  }
+
+  try {
+    // Re-authenticate if email change
+    if (emailChanged) {
+      const credential = EmailAuthProvider.credential(currentUser.email, password);
+      await reauthenticateWithCredential(currentUser, credential);
+      await verifyBeforeUpdateEmail(currentUser, newEmail);
+    }
+
+    // Update display name
+    if (newName !== userData.name) {
+      await updateProfile(currentUser, { displayName: newName });
+      await updateDoc(doc(db, 'users', currentUser.uid), { name: newName });
+      userData.name = newName;
+    }
+
+    if (emailChanged) {
+      sucEl.textContent = '確認メールを送信しました。メール内のリンクをクリックすると変更が完了します。ユーザー名は更新されました。';
+    } else {
+      sucEl.textContent = '保存しました';
+    }
+  } catch (e) {
+    errEl.textContent = firebaseErrorMsg(e.code);
+  }
+}
+
 // Expose functions to global scope for onclick handlers
 window.doRegister = doRegister;
 window.doLogin = doLogin;
@@ -219,6 +273,8 @@ window.doLogout = doLogout;
 window.showLoginForm = showLoginForm;
 window.showRegisterForm = showRegisterForm;
 window.showRanking = showRanking;
+window.showProfile = showProfile;
+window.saveProfile = saveProfile;
 window.saveSoloResult = saveSoloResult;
 window.saveBattleResult = saveBattleResult;
 
@@ -744,6 +800,7 @@ window.requestRematch = requestRematch;
   .room-code { font-size: 36px; font-weight: bold; color: #00f0f0; letter-spacing: 6px; font-family: monospace; margin: 16px 0; user-select: all; }
   .status-msg { color: #f0a000; font-size: 14px; margin-top: 12px; }
   .error-msg { color: #f04040; font-size: 14px; margin-top: 8px; min-height: 20px; }
+  .success-msg { color: #00f000; font-size: 14px; margin-top: 8px; min-height: 20px; }
   .hidden { display: none; }
   .win-text { color: #00f000; }
   .lose-text { color: #f00000; }
@@ -807,6 +864,8 @@ window.requestRematch = requestRematch;
     <button class="primary" onclick="showJoinUI()">部屋に参加</button>
     <br>
     <button onclick="showRanking()">ランキング</button>
+    <button onclick="showProfile()">プロフィール編集</button>
+    <br>
     <button class="link-btn" onclick="doLogout()">ログアウト</button>
   </div>
 </div>
@@ -821,6 +880,22 @@ window.requestRematch = requestRematch;
     </table>
     <br>
     <button onclick="backToMenu()">戻る</button>
+  </div>
+</div>
+
+<!-- Profile Edit -->
+<div class="overlay hidden" id="profile-screen">
+  <div class="overlay-content">
+    <h2>プロフィール編集</h2>
+    <div class="form-section">
+      <input type="text" id="profile-name" placeholder="ユーザー名">
+      <input type="email" id="profile-email" placeholder="メールアドレス">
+      <input type="password" id="profile-password" placeholder="現在のパスワード（メール変更時のみ必要）">
+      <div class="error-msg" id="profile-error"></div>
+      <div class="success-msg" id="profile-success"></div>
+      <button class="primary" onclick="saveProfile()">保存</button>
+      <button onclick="backToMenu()">戻る</button>
+    </div>
   </div>
 </div>
 

@@ -884,8 +884,10 @@ window.requestRematch = requestRematch;
     <button class="primary" onclick="createRoom()">部屋を作る</button>
     <button class="primary" onclick="showJoinUI()">部屋に参加</button>
     <br>
-    <button onclick="showRanking()">ランキング</button>
-    <button onclick="showProfile()">プロフィール編集</button>
+    <div style="display: flex; justify-content: center; gap: 12px; margin-top: 6px;">
+      <button onclick="showRanking()" style="flex: 1;">ランキング</button>
+      <button onclick="showProfile()" style="flex: 1;">プロフィール編集</button>
+    </div>
     <button class="link-btn" onclick="doLogout()">ログアウト</button>
   </div>
 </div>

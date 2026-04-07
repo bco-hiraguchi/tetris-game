@@ -27,9 +27,11 @@ const db = getFirestore(app);
 // ===== Firebase Auth =====
 let currentUser = null;
 let userData = null;
+let skipAuthRedirect = false;
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user;
+  if (skipAuthRedirect) return;
   if (user) {
     await loadUserData();
     hideAllOverlays();
@@ -72,10 +74,18 @@ async function doRegister() {
   if (pass.length < 6) { errEl.textContent = 'パスワードは6文字以上で入力してください'; return; }
 
   try {
+    skipAuthRedirect = true;
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName: name });
-    // onAuthStateChanged will handle the rest
+    currentUser = cred.user;
+    userData = { name, wins: 0, losses: 0, highScore: 0, totalGames: 0 };
+    await setDoc(doc(db, 'users', cred.user.uid), { ...userData, createdAt: serverTimestamp() });
+    skipAuthRedirect = false;
+    hideAllOverlays();
+    show('menu-screen');
+    updateMenuUserInfo();
   } catch (e) {
+    skipAuthRedirect = false;
     errEl.textContent = firebaseErrorMsg(e.code);
   }
 }

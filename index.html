@@ -838,6 +838,9 @@ window.requestRematch = requestRematch;
   .ranking-table th { color: #8888cc; font-size: 12px; text-transform: uppercase; }
   .ranking-table td { font-size: 14px; }
   .form-section { margin-top: 16px; }
+  .menu-buttons { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 8px; }
+  .menu-buttons button { width: 100%; text-align: left; margin: 0; }
+  .menu-buttons .link-btn { text-align: left; padding-left: 12px; }
 </style>
 </head>
 <body>
@@ -879,16 +882,14 @@ window.requestRematch = requestRematch;
       <div class="name" id="menu-user-name">Player</div>
       <div class="stats" id="menu-user-stats"></div>
     </div>
-    <button onclick="startSolo()">ひとりで遊ぶ</button>
-    <br>
-    <button class="primary" onclick="createRoom()">部屋を作る</button>
-    <button class="primary" onclick="showJoinUI()">部屋に参加</button>
-    <br>
-    <div style="display: flex; justify-content: center; gap: 12px; margin-top: 6px;">
-      <button onclick="showRanking()" style="flex: 1; white-space: nowrap;">ランキング</button>
-      <button onclick="showProfile()" style="flex: 1; white-space: nowrap;">プロフィール編集</button>
+    <div class="menu-buttons">
+      <button onclick="startSolo()">ひとりで遊ぶ</button>
+      <button class="primary" onclick="createRoom()">部屋を作る</button>
+      <button class="primary" onclick="showJoinUI()">部屋に参加</button>
+      <button onclick="showRanking()">ランキング</button>
+      <button onclick="showProfile()">プロフィール編集</button>
+      <button class="link-btn" onclick="doLogout()">ログアウト</button>
     </div>
-    <button class="link-btn" onclick="doLogout()">ログアウト</button>
   </div>
 </div>
 

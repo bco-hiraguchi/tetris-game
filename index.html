@@ -636,17 +636,7 @@ function gameLoop(time) {
     }
   }
   if (myState && myState.gameOver) {
-    cancelAnimationFrame(animId);
-    if (mode === 'solo') {
-      document.getElementById('solo-final-score').textContent = myState.score;
-      document.getElementById('solo-final-level').textContent = myState.level;
-      document.getElementById('solo-final-lines').textContent = myState.lines;
-      saveSoloResult(myState);
-      show('solo-gameover-screen');
-    } else {
-      conn.send({ type: 'gameover' });
-      endBattle(false);
-    }
+    handleGameOver();
     return;
   }
   animId = requestAnimationFrame(gameLoop);
@@ -758,7 +748,22 @@ document.addEventListener('keydown', e => {
   }
   e.preventDefault();
   drawBoard(myState, 'my-board', true); updateUI(myState, 'my');
+  if (myState.gameOver) { handleGameOver(); }
 });
+
+function handleGameOver() {
+  cancelAnimationFrame(animId);
+  if (mode === 'solo') {
+    document.getElementById('solo-final-score').textContent = myState.score;
+    document.getElementById('solo-final-level').textContent = myState.level;
+    document.getElementById('solo-final-lines').textContent = myState.lines;
+    saveSoloResult(myState);
+    show('solo-gameover-screen');
+  } else {
+    if (conn && conn.open) conn.send({ type: 'gameover' });
+    endBattle(false);
+  }
+}
 
 // Expose game functions
 window.startSolo = startSolo;
